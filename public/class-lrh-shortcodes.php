@@ -572,14 +572,16 @@ public function interactive_chart_shortcode($atts) {
 					<input type="range"
 						   class="lrh-time-slider"
 						   min="90"
-						   max="<?php echo max(730, intval($atts['days'])); ?>"
+						   max="<?php echo intval($atts['days']); ?>"
 						   value="<?php echo esc_attr($atts['days']); ?>"
-						   step="30">
+						   step="<?php echo intval($atts['days']) > 1825 ? '90' : '30'; ?>">
 					<div class="slider-labels">
 						<span>3 mån</span>
 						<span><?php
-							$max_days = max(730, intval($atts['days']));
-							if ($max_days <= 730) {
+							$max_days = intval($atts['days']);
+							if ($max_days <= 365) {
+								echo round($max_days / 30) . ' mån';
+							} elseif ($max_days <= 730) {
 								echo '2 år';
 							} else {
 								$years = round($max_days / 365);
@@ -613,10 +615,10 @@ public function interactive_chart_shortcode($atts) {
         
         <!-- Custom legend -->
         <div class="lrh-custom-legend"></div>
-        
+
         <!-- Aktuella värden -->
-        <div class="lrh-current-values">
-            <h4>Aktuella värden</h4>
+        <div class="lrh-current-values" style="margin-top: 30px;">
+            <h4 style="margin-bottom: 15px; font-size: 16px; font-weight: 600; color: #111827;">Aktuella värden</h4>
             <div class="lrh-values-cards"></div>
         </div>
     </div>

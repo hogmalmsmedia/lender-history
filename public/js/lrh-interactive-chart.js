@@ -381,7 +381,7 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		if (!legendContainer) return;
 
 		let html =
-			'<div class="headline-h6" style="margin-bottom: 12px;">Välj banker att visa:</div><div class="lrh-legend-items grid-3 gap-s">';
+			'<div style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 15px;">Välj banker att visa:</div><div class="lrh-legend-items" style="display: flex; flex-wrap: wrap; gap: 8px;">';
 
 		// Lägg till genomsnitt först om det finns
 		if (options.showAverage) {
@@ -389,13 +389,13 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			html += `
                 <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}"
                      data-bank="average"
-                     style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${
+                     style="cursor: pointer; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; background: ${
 							isActive ? '#fff' : '#f9fafb'
-						};">
-                    <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${
+						}; font-size: 13px;">
+                    <span class="lrh-legend-color" style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: ${
 						theme.colors.gray
-					}; opacity: ${!isActive ? '0.3' : '1'};"></span>
-                    <span class="text-small">Genomsnitt</span>
+					}; opacity: ${!isActive ? '0.3' : '1'}; flex-shrink: 0;"></span>
+                    <span style="font-size: 13px; line-height: 1;">Genomsnitt</span>
                 </div>
             `;
 		}
@@ -407,13 +407,13 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			html += `
                 <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}"
                      data-bank="${bank.id}"
-                     style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${
+                     style="cursor: pointer; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; background: ${
 							isActive ? '#fff' : '#f9fafb'
-						};">
-                    <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${color}; opacity: ${
+						}; font-size: 13px;">
+                    <span class="lrh-legend-color" style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: ${color}; opacity: ${
 				!isActive ? '0.3' : '1'
-			};"></span>
-                    <span class="text-small">${bank.name}</span>
+			}; flex-shrink: 0;"></span>
+                    <span style="font-size: 13px; line-height: 1;">${bank.name}</span>
                 </div>
             `;
 		});
@@ -447,7 +447,7 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		if (!valuesContainer) return;
 
 		let hasValues = false;
-		let html = '<div class="grid-3 gap-s">';
+		let valueCards = [];
 
 		banksData.forEach((bank) => {
 			if (activeBanks.get(bank.id.toString())) {
@@ -471,23 +471,25 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 					const changeClass = change > 0 ? 'lrh-increase' : change < 0 ? 'lrh-decrease' : 'lrh-no-change';
 					const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
 
-					html += `
-                        <div class="lrh-value-card" style="background: #f9fafb; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e5e7eb;">
-                            <div class="text-small" style="color: #6b7280; margin-bottom: 8px;">${bank.name}</div>
-                            <div class="headline-h5" style="color: #111827;">${latestValue
-								.toFixed(2)
-								.replace('.', ',')}%</div>
-                            <div class="text-xs ${changeClass}" style="margin-top: 4px;">
-                                ${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')}%
-                            </div>
-                        </div>
-                    `;
+					valueCards.push(`
+						<div class="lrh-value-card">
+							<div class="lrh-bank-name">${bank.name}</div>
+							<div class="lrh-bank-rate">${latestValue.toFixed(2).replace('.', ',')}%</div>
+							<div class="lrh-bank-change ${changeClass}">
+								${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')}%
+							</div>
+						</div>
+					`);
 				}
 			}
 		});
 
-		html += '</div>';
-		valuesContainer.innerHTML = hasValues ? html : '<p class="text-small">Inga värden att visa</p>';
+		if (hasValues) {
+			// Visa alltid med automatisk grid som anpassar sig
+			valuesContainer.innerHTML = `<div class="lrh-values-grid">${valueCards.join('')}</div>`;
+		} else {
+			valuesContainer.innerHTML = '<p class="text-small" style="color: #6b7280;">Inga värden att visa</p>';
+		}
 	}
 
 	// Event listeners för period-knappar
@@ -536,27 +538,116 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		});
 	}
 
-	// Lägg till CSS för legend items
+	// Lägg till CSS för legend items och värdekort
 	const style = document.createElement('style');
 	style.textContent = `
-        .lrh-legend-item {
-            transition: all 0.2s ease;
-        }
-        .lrh-legend-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-        .lrh-value-card {
-            transition: all 0.2s ease;
-        }
-        .lrh-value-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-        .lrh-increase { color: #ef4444; }
-        .lrh-decrease { color: #10b981; }
-        .lrh-no-change { color: #6b7280; }
-    `;
+		/* Legend styling */
+		.lrh-legend-item {
+			transition: all 0.2s ease;
+			white-space: nowrap;
+		}
+		.lrh-legend-item:hover {
+			transform: translateY(-1px);
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+		}
+
+		/* Values grid - Automatisk anpassning */
+		.lrh-values-grid {
+			display: grid;
+			gap: 10px;
+			grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+			width: 100%;
+		}
+
+		@media (min-width: 1200px) {
+			.lrh-values-grid {
+				grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+			}
+		}
+
+		@media (max-width: 768px) {
+			.lrh-values-grid {
+				grid-template-columns: repeat(2, 1fr);
+				gap: 8px;
+				width: 100%;
+			}
+		}
+
+		@media (max-width: 480px) {
+			.lrh-values-grid {
+				grid-template-columns: repeat(2, 1fr);
+				gap: 8px;
+				width: 100%;
+			}
+		}
+
+		/* Value cards - Enhetlig storlek */
+		.lrh-value-card {
+			background: #ffffff;
+			padding: 12px 10px;
+			border-radius: 8px;
+			text-align: center;
+			border: 1px solid #e5e7eb;
+			transition: all 0.2s ease;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+			min-height: 85px;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+		}
+		.lrh-value-card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+			border-color: #d1d5db;
+		}
+
+		.lrh-bank-name {
+			font-size: 12px;
+			color: #6b7280;
+			margin-bottom: 4px;
+			font-weight: 500;
+			line-height: 1.2;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.lrh-bank-rate {
+			font-size: 19px;
+			font-weight: 700;
+			color: #111827;
+			margin-bottom: 3px;
+			line-height: 1;
+		}
+
+		.lrh-bank-change {
+			font-size: 11px;
+			font-weight: 600;
+			line-height: 1.2;
+		}
+
+		/* Färger för ändringar */
+		.lrh-increase { color: #ef4444; }
+		.lrh-decrease { color: #10b981; }
+		.lrh-no-change { color: #6b7280; }
+
+		/* Mobile adjustments */
+		@media (max-width: 480px) {
+			.lrh-value-card {
+				padding: 10px 8px;
+				min-height: 75px;
+			}
+			.lrh-bank-name {
+				font-size: 11px;
+			}
+			.lrh-bank-rate {
+				font-size: 17px;
+			}
+			.lrh-bank-change {
+				font-size: 10px;
+			}
+		}
+	`;
 	if (!document.getElementById('lrh-interactive-styles')) {
 		style.id = 'lrh-interactive-styles';
 		document.head.appendChild(style);
