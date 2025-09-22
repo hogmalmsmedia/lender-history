@@ -93,13 +93,12 @@ function initLRHInteractiveChart(chartId, banksData, options) {
         const datasets = [];
         let allDates = new Set();
         const rawDatasets = [];
-        let colorIndex = 0;
-        
+
         // Samla data för aktiva banker
         banksData.forEach((bank, bankIndex) => {
             if (activeBanks.get(bank.id.toString())) {
                 let periodData = null;
-                
+
                 // Kolla om bank har types eller periods struktur
                 if (bank.types && bank.types[currentType]) {
                     const typeData = bank.types[currentType];
@@ -109,27 +108,27 @@ function initLRHInteractiveChart(chartId, banksData, options) {
                 } else if (bank.periods && bank.periods[currentPeriod]) {
                     periodData = bank.periods[currentPeriod];
                 }
-                
-                if (!periodData || !periodData.dates || !periodData.values || 
+
+                if (!periodData || !periodData.dates || !periodData.values ||
                     periodData.dates.length === 0 || periodData.values.length === 0) {
                     return;
                 }
-                
+
                 const filtered = filterDataByTimeRange(
-                    periodData.dates, 
-                    periodData.values, 
+                    periodData.dates,
+                    periodData.values,
                     timeRange
                 );
-                
+
                 if (filtered.dates.length > 0) {
                     filtered.dates.forEach(date => allDates.add(date));
-                    
+
                     rawDatasets.push({
                         label: bank.name,
                         bankId: bank.id,
                         values: filtered.values,
                         dates: filtered.dates,
-                        colorIndex: colorIndex++
+                        colorIndex: bankIndex  // Använd bankIndex istället för colorIndex++
                     });
                 }
             }
@@ -356,14 +355,14 @@ function initLRHInteractiveChart(chartId, banksData, options) {
     function updateInteractiveLegend() {
         const legendContainer = container.querySelector('.lrh-custom-legend');
         if (!legendContainer) return;
-        
+
         let html = '<div class="headline-h6" style="margin-bottom: 12px;">Välj banker att visa:</div><div class="lrh-legend-items grid-3 gap-s">';
-        
+
         // Lägg till genomsnitt först om det finns
         if (options.showAverage) {
             const isActive = activeBanks.get('average');
             html += `
-                <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}" 
+                <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}"
                      data-bank="average"
                      style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${isActive ? '#fff' : '#f9fafb'};">
                     <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${theme.colors.gray}; opacity: ${!isActive ? '0.3' : '1'};"></span>
@@ -371,33 +370,19 @@ function initLRHInteractiveChart(chartId, banksData, options) {
                 </div>
             `;
         }
-        
-        // Lägg till banker
-        let colorIndex = 0;
-        banksData.forEach((bank, index) => {
-            if (activeBanks.get(bank.id.toString())) {
-                const color = theme.bankColors[colorIndex++ % theme.bankColors.length];
-                const isActive = true;
-                html += `
-                    <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}" 
-                         data-bank="${bank.id}"
-                         style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${isActive ? '#fff' : '#f9fafb'};">
-                        <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${color}; opacity: ${!isActive ? '0.3' : '1'};"></span>
-                        <span class="text-small">${bank.name}</span>
-                    </div>
-                `;
-            } else {
-                const color = theme.bankColors[index % theme.bankColors.length];
-                const isActive = false;
-                html += `
-                    <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}" 
-                         data-bank="${bank.id}"
-                         style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${isActive ? '#fff' : '#f9fafb'};">
-                        <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${color}; opacity: ${!isActive ? '0.3' : '1'};"></span>
-                        <span class="text-small">${bank.name}</span>
-                    </div>
-                `;
-            }
+
+        // Lägg till banker - använd bankIndex för konsekvent färgtilldelning
+        banksData.forEach((bank, bankIndex) => {
+            const isActive = activeBanks.get(bank.id.toString());
+            const color = theme.bankColors[bankIndex % theme.bankColors.length];  // Använd bankIndex för konsekvent färg
+            html += `
+                <div class="lrh-legend-item ${!isActive ? 'disabled' : ''}"
+                     data-bank="${bank.id}"
+                     style="cursor: pointer; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; display: flex; align-items: center; gap: 8px; background: ${isActive ? '#fff' : '#f9fafb'};">
+                    <span class="lrh-legend-color" style="display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: ${color}; opacity: ${!isActive ? '0.3' : '1'};"></span>
+                    <span class="text-small">${bank.name}</span>
+                </div>
+            `;
         });
         
         html += '</div>';
