@@ -345,7 +345,7 @@
 
 .value-card .rate-value {
     font-size: 24px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--lrh-text-dark);
     margin: 8px 0;
 }
