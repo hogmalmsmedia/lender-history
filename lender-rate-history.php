@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Lender Rate History
+ * Plugin Name: Lender Rate History 
  * Plugin URI: https://yourdomain.com/lender-rate-history
  * Description: Tracks and displays historical rate changes for lenders with ACF integration
  * Version: 1.0.0
