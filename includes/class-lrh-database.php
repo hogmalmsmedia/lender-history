@@ -191,11 +191,11 @@ class LRH_Database {
      * Get history for a specific field
      */
     public function get_field_history($post_id, $field_name, $limit = 30, $offset = 0) {
-        // Om limit är dagar
+        // Om limit är dagar - alltid använd datumfiltrering när limit är ett rimligt antal dagar
         $date_filter = "";
-        if ($limit <= 365) {
+        if (is_numeric($limit) && $limit > 0) {
             $date_filter = "AND change_date >= DATE_SUB(NOW(), INTERVAL {$limit} DAY)";
-            $limit = 1000;
+            $limit = 1000; // Sätt ett högt limit för antal rader för att få alla inom datumintervallet
         }
         
         $sql = $this->wpdb->prepare(
