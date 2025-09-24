@@ -321,6 +321,11 @@
     margin-bottom: 15px;
 }
 
+.lrh-values-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+}
 
 .value-card {
     padding: 15px;
@@ -345,7 +350,7 @@
 
 .value-card .rate-value {
     font-size: 24px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--lrh-text-dark);
     margin: 8px 0;
 }
@@ -424,6 +429,9 @@
         gap: 10px;
     }
     
+    .lrh-values-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
     
     .lrh-svg-tooltip {
         position: fixed;

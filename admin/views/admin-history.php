@@ -7,6 +7,12 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Check if we should show unvalidated view
+if (isset($_GET['filter']) && $_GET['filter'] === 'unvalidated') {
+    include plugin_dir_path(__FILE__) . 'admin-history-unvalidated.php';
+    return;
+}
+
 // Check which view file exists and use it
 $dashboard_file = plugin_dir_path(__FILE__) . 'admin-history-dashboard.php';
 $fallback_file = plugin_dir_path(__FILE__) . 'admin-history-fallback.php';

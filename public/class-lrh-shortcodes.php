@@ -559,35 +559,17 @@ public function interactive_chart_shortcode($atts) {
 
 			<!-- Tidsperiod -->
 			<div class="lrh-time-section">
-				<h4>Tidsperiod: <span class="time-display">Senaste <?php
-					$days = intval($atts['days']);
-					if ($days > 365) {
-						$years = round($days / 365, 1);
-						echo $years == intval($years) ? intval($years) . ' åren' : str_replace('.', ',', $years) . ' åren';
-					} else {
-						echo round($days / 30) . ' månaderna';
-					}
-				?></span></h4>
+				<h4>Tidsperiod: <span class="time-display">Senaste <?php echo round($atts['days'] / 30); ?> månaderna</span></h4>
 				<div class="lrh-slider-container">
-					<input type="range"
+					<input type="range" 
 						   class="lrh-time-slider"
-						   min="90"
-						   max="<?php echo intval($atts['days']); ?>"
-						   value="<?php echo esc_attr($atts['days']); ?>"
-						   step="<?php echo intval($atts['days']) > 1825 ? '90' : '30'; ?>">
+						   min="90" 
+						   max="730" 
+						   value="<?php echo esc_attr($atts['days']); ?>" 
+						   step="30">
 					<div class="slider-labels">
 						<span>3 mån</span>
-						<span><?php
-							$max_days = intval($atts['days']);
-							if ($max_days <= 365) {
-								echo round($max_days / 30) . ' mån';
-							} elseif ($max_days <= 730) {
-								echo '2 år';
-							} else {
-								$years = round($max_days / 365);
-								echo $years . ' år';
-							}
-						?></span>
+						<span>2 år</span>
 					</div>
 				</div>
 			</div>
@@ -615,10 +597,10 @@ public function interactive_chart_shortcode($atts) {
         
         <!-- Custom legend -->
         <div class="lrh-custom-legend"></div>
-
+        
         <!-- Aktuella värden -->
-        <div class="lrh-current-values" style="margin-top: 30px;">
-            <h4 style="margin-bottom: 15px; font-size: 16px; font-weight: 600; color: #111827;">Aktuella värden</h4>
+        <div class="lrh-current-values">
+            <h4>Aktuella värden</h4>
             <div class="lrh-values-cards"></div>
         </div>
     </div>
