@@ -313,17 +313,50 @@ public function enqueue_scripts($hook) {
     }
     
     /**
+     * AJAX: Validate all changes
+     */
+    public function ajax_validate_all_changes() {
+        check_ajax_referer('lrh_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Du har inte behörighet att utföra denna åtgärd.', 'lender-rate-history'));
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'lender_rate_history';
+
+        // Update all unvalidated changes
+        $result = $wpdb->update(
+            $table_name,
+            [
+                'is_validated' => 1,
+                'validation_notes' => sprintf(__('Bulk-validerad av %s', 'lender-rate-history'), wp_get_current_user()->display_name)
+            ],
+            ['is_validated' => 0],
+            ['%d', '%s'],
+            ['%d']
+        );
+
+        if ($result !== false) {
+            $message = sprintf(__('%d ändringar har validerats.', 'lender-rate-history'), $result);
+            wp_send_json_success($message);
+        } else {
+            wp_send_json_error(__('Kunde inte validera ändringarna.', 'lender-rate-history'));
+        }
+    }
+
+    /**
      * AJAX: Clear cache
      */
     public function ajax_clear_cache() {
         check_ajax_referer('lrh_admin_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_die(__('Du har inte behörighet att utföra denna åtgärd.', 'lender-rate-history'));
         }
-        
+
         wp_cache_flush();
-        
+
         wp_send_json_success(__('Cache rensad!', 'lender-rate-history'));
     }
     

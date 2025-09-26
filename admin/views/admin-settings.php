@@ -29,14 +29,14 @@ if (isset($_POST['submit']) && isset($_POST['_wpnonce'])) {
         // Save other settings
         if (isset($_POST['lrh_settings'])) {
             $settings = $_POST['lrh_settings'];
-            
+
             // Sanitize settings
-            $settings['enabled'] = isset($settings['enabled']) ? 1 : 0;
+            $settings['enabled'] = 1; // Alltid aktiverad
             $settings['track_manual_changes'] = isset($settings['track_manual_changes']) ? 1 : 0;
             $settings['track_import_changes'] = isset($settings['track_import_changes']) ? 1 : 0;
             $settings['enable_validation'] = isset($settings['enable_validation']) ? 1 : 0;
             $settings['enable_notifications'] = isset($settings['enable_notifications']) ? 1 : 0;
-            $settings['retention_days'] = intval($settings['retention_days']);
+            // Ta bort retention_days - obegränsad lagring
             $settings['large_change_threshold'] = intval($settings['large_change_threshold']);
             $settings['notification_email'] = sanitize_email($settings['notification_email']);
             
@@ -59,29 +59,7 @@ $tracked_fields = get_option('lrh_tracked_fields', []);
         
         <!-- General Settings -->
         <h2><?php _e('Allmänna inställningar', 'lender-rate-history'); ?></h2>
-        <table class="form-table">
-            <tr>
-                <th scope="row"><?php _e('Aktivera spårning', 'lender-rate-history'); ?></th>
-                <td>
-                    <label>
-                        <input type="checkbox" name="lrh_settings[enabled]" value="1" 
-                               <?php checked(!empty($settings['enabled'])); ?>>
-                        <?php _e('Aktivera historikspårning', 'lender-rate-history'); ?>
-                    </label>
-                </td>
-            </tr>
-            
-            <tr>
-                <th scope="row"><?php _e('Datalagring', 'lender-rate-history'); ?></th>
-                <td>
-                    <input type="number" name="lrh_settings[retention_days]" 
-                           value="<?php echo isset($settings['retention_days']) ? esc_attr($settings['retention_days']) : 365; ?>" 
-                           min="30" max="3650" class="small-text">
-                    <?php _e('dagar', 'lender-rate-history'); ?>
-                    <p class="description"><?php _e('Hur länge historik ska behållas (30-3650 dagar)', 'lender-rate-history'); ?></p>
-                </td>
-            </tr>
-        </table>
+        <p class="description"><?php _e('Historikspårning är alltid aktiverad för alla långivare.', 'lender-rate-history'); ?></p>
         
         <!-- Tracking Settings -->
         <h2><?php _e('Spårningsinställningar', 'lender-rate-history'); ?></h2>

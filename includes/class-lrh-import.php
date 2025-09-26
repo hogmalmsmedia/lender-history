@@ -48,7 +48,7 @@ class LRH_Import {
     }
     
 	/**
-	 * Import data from CSV file
+	 * Import data from CSV file with batch processing
 	 */
 	public function import_csv($file_path, $mode = 'add') {
 		error_log('LRH Import - Starting CSV import from: ' . $file_path);
@@ -89,76 +89,98 @@ class LRH_Import {
 
 		error_log('LRH Import - Normalized headers: ' . print_r($headers, true));
 
-		// Clear existing data if replace mode
+		// Clear existing data if replace mode - ENDAST EN GÅNG
 		if ($mode === 'replace') {
 			$this->clear_all_history();
 			error_log('LRH Import - Cleared all existing history (replace mode)');
-    }
-    
-    $imported = 0;
-    $errors = [];
-    $row_number = 1; // Start från rad 1 (headers är rad 0)
-    
-    // Process rows
-    while (($row = fgetcsv($handle)) !== false) {
-        $row_number++;
-        
-        // Hoppa över tomma rader
-        if (empty(array_filter($row))) {
-            continue;
-        }
-        
-        if (count($row) !== count($headers)) {
-            $errors[] = sprintf(__('Rad %d har fel antal kolumner (förväntade %d, fick %d)', 'lender-rate-history'), 
-                $row_number, count($headers), count($row));
-            error_log('LRH Import - Row ' . $row_number . ' has wrong number of columns');
-            continue;
-        }
-        
-        // Kombinera headers med värden
-        $data = array_combine($headers, $row);
-        
-        if ($data === false) {
-            $errors[] = sprintf(__('Rad %d kunde inte bearbetas', 'lender-rate-history'), $row_number);
-            error_log('LRH Import - Row ' . $row_number . ' could not be combined with headers');
-            continue;
-        }
-        
-        error_log('LRH Import - Processing row ' . $row_number . ' with data: ' . print_r($data, true));
-        
-        // Map CSV fields to database fields
-        $record = $this->map_csv_to_record($data);
-        
-        if ($record) {
-            if ($this->database->insert_change($record)) {
-                $imported++;
-                error_log('LRH Import - Successfully imported row ' . $row_number);
-            } else {
-                $errors[] = sprintf(__('Rad %d kunde inte importeras till databasen', 'lender-rate-history'), $row_number);
-                error_log('LRH Import - Failed to insert row ' . $row_number . ' to database');
-            }
-        } else {
-            $errors[] = sprintf(__('Rad %d saknar obligatoriska fält', 'lender-rate-history'), $row_number);
-            error_log('LRH Import - Row ' . $row_number . ' missing required fields');
-        }
-    }
-    
-    fclose($handle);
-    
-    error_log('LRH Import - Import completed. Imported: ' . $imported . ', Errors: ' . count($errors));
-    
-    if (!empty($errors) && $imported === 0) {
-        // Om inga rader importerades, returnera fel med bara de första 5 felen
-        $error_message = implode(', ', array_slice($errors, 0, 5));
-        if (count($errors) > 5) {
-            $error_message .= sprintf(' ... och %d till fel', count($errors) - 5);
-        }
-        return new WP_Error('import_errors', $error_message, ['imported' => 0]);
-    }
-    
-    // Returnera antal importerade även om det fanns några fel
-    return $imported;
-}
+		}
+
+		$imported = 0;
+		$errors = [];
+		$row_number = 1; // Start från rad 1 (headers är rad 0)
+		$batch = []; // Array för batch-insert
+		$batch_size = 500; // Antal rader per batch
+
+		// Process rows
+		while (($row = fgetcsv($handle)) !== false) {
+			$row_number++;
+
+			// Hoppa över tomma rader
+			if (empty(array_filter($row))) {
+				continue;
+			}
+
+			if (count($row) !== count($headers)) {
+				$errors[] = sprintf(__('Rad %d har fel antal kolumner (förväntade %d, fick %d)', 'lender-rate-history'),
+					$row_number, count($headers), count($row));
+				if (count($errors) <= 10) { // Begränsa loggning
+					error_log('LRH Import - Row ' . $row_number . ' has wrong number of columns');
+				}
+				continue;
+			}
+
+			// Kombinera headers med värden
+			$data = array_combine($headers, $row);
+
+			if ($data === false) {
+				$errors[] = sprintf(__('Rad %d kunde inte bearbetas', 'lender-rate-history'), $row_number);
+				if (count($errors) <= 10) {
+					error_log('LRH Import - Row ' . $row_number . ' could not be combined with headers');
+				}
+				continue;
+			}
+
+			// Map CSV fields to database fields
+			$record = $this->map_csv_to_record($data);
+
+			if ($record) {
+				// Lägg till i batch istället för att insert direkt
+				$batch[] = $record;
+
+				// När batch är full, gör batch insert
+				if (count($batch) >= $batch_size) {
+					$batch_result = $this->database->batch_insert($batch);
+					if ($batch_result) {
+						$imported += count($batch);
+						error_log('LRH Import - Batch inserted ' . count($batch) . ' records (total: ' . $imported . ')');
+					} else {
+						error_log('LRH Import - Failed to batch insert ' . count($batch) . ' records');
+					}
+					$batch = []; // Rensa batch
+				}
+			} else {
+				$errors[] = sprintf(__('Rad %d saknar obligatoriska fält', 'lender-rate-history'), $row_number);
+				if (count($errors) <= 10) {
+					error_log('LRH Import - Row ' . $row_number . ' missing required fields');
+				}
+			}
+		}
+
+		// Importera eventuella kvarvarande poster i batch
+		if (!empty($batch)) {
+			$batch_result = $this->database->batch_insert($batch);
+			if ($batch_result) {
+				$imported += count($batch);
+				error_log('LRH Import - Final batch inserted ' . count($batch) . ' records (total: ' . $imported . ')');
+			}
+		}
+
+		fclose($handle);
+
+		error_log('LRH Import - Import completed. Imported: ' . $imported . ', Errors: ' . count($errors));
+
+		if (!empty($errors) && $imported === 0) {
+			// Om inga rader importerades, returnera fel med bara de första 5 felen
+			$error_message = implode(', ', array_slice($errors, 0, 5));
+			if (count($errors) > 5) {
+				$error_message .= sprintf(' ... och %d till fel', count($errors) - 5);
+			}
+			return new WP_Error('import_errors', $error_message, ['imported' => 0]);
+		}
+
+		// Returnera antal importerade även om det fanns några fel
+		return $imported;
+	}
     
     /**
      * Import data from JSON file

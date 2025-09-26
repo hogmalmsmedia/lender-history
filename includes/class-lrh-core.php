@@ -112,6 +112,7 @@ class LRH_Core {
         $this->loader->add_action('wp_ajax_lrh_import_data', $this->admin, 'ajax_import_data');
         $this->loader->add_action('wp_ajax_lrh_initialize_history', $this->admin, 'ajax_initialize_history');
         $this->loader->add_action('wp_ajax_lrh_clear_cache', $this->admin, 'ajax_clear_cache');
+        $this->loader->add_action('wp_ajax_lrh_validate_all_changes', $this->admin, 'ajax_validate_all_changes');
     }
     
     /**
@@ -173,27 +174,12 @@ class LRH_Core {
     
     /**
      * Run daily cleanup tasks
+     * DISABLED - data lagras obegränsat
      */
     public function run_daily_cleanup() {
-        $settings = get_option('lrh_settings', []);
-        $retention_days = isset($settings['retention_days']) ? $settings['retention_days'] : 365;
-        
-        // Clean old records
-        $database = new LRH_Database();
-        $deleted = $database->cleanup_old_records($retention_days);
-        
-        // Log cleanup
-        if ($deleted > 0) {
-            error_log(sprintf('LRH: Cleaned up %d old records', $deleted));
-        }
-        
-        // Clear all cache
+        // Funktionen är inaktiverad - data lagras obegränsat
+        // Clear cache kan fortfarande köras
         $this->api->clear_all_cache();
-        
-        // Send notification if enabled
-        if (!empty($settings['enable_notifications']) && $deleted > 0) {
-            $this->send_cleanup_notification($deleted);
-        }
     }
     
     /**

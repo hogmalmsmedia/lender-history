@@ -90,7 +90,7 @@ class LRH_Activator {
             'track_manual_changes' => true,
             'track_import_changes' => true,
             'track_option_changes' => true, // NY
-            'retention_days' => 365,
+            // retention_days borttagen - obegränsad lagring
             'large_change_threshold' => 25,
             'enable_validation' => true,
             'enable_notifications' => false,

@@ -9,9 +9,106 @@ if (!defined('ABSPATH')) {
 
 global $wpdb;
 $table_name = $wpdb->prefix . 'lender_rate_history';
+$database = new LRH_Database();
+
+// Check for filter parameter
+$filter = isset($_GET['filter']) ? sanitize_text_field($_GET['filter']) : '';
+
+// Handle unvalidated filter
+if ($filter === 'unvalidated') {
+    // Get unvalidated changes
+    $unvalidated_changes = $database->get_unvalidated_changes(100);
+    ?>
+    <div class="wrap">
+        <h1>
+            <?php _e('Ovaliderade ändringar', 'lender-rate-history'); ?>
+            <a href="<?php echo admin_url('admin.php?page=lrh-history'); ?>" class="page-title-action">
+                <?php _e('← Tillbaka till översikt', 'lender-rate-history'); ?>
+            </a>
+        </h1>
+
+        <?php if (!empty($unvalidated_changes)): ?>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th><?php _e('Bank', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Fält', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Tidigare värde', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Nytt värde', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Förändring', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Datum', 'lender-rate-history'); ?></th>
+                    <th><?php _e('Åtgärder', 'lender-rate-history'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($unvalidated_changes as $change):
+                    $post = get_post($change->post_id);
+                ?>
+                <tr>
+                    <td>
+                        <?php if ($post): ?>
+                        <a href="<?php echo admin_url('admin.php?page=lrh-history&lender_id=' . $change->post_id); ?>">
+                            <?php echo esc_html($post->post_title); ?>
+                        </a>
+                        <?php else: ?>
+                        <?php _e('Okänd', 'lender-rate-history'); ?>
+                        <?php endif; ?>
+                    </td>
+                    <td><?php echo esc_html($change->field_name); ?></td>
+                    <td><?php echo $change->old_value !== null ? number_format($change->old_value, 2, ',', ' ') . '%' : '-'; ?></td>
+                    <td><?php echo number_format($change->new_value, 2, ',', ' ') . '%'; ?></td>
+                    <td>
+                        <?php
+                        if ($change->change_percentage !== null) {
+                            $arrow = $change->change_percentage > 0 ? '↑' : ($change->change_percentage < 0 ? '↓' : '→');
+                            $class = $change->change_percentage > 0 ? 'increase' : ($change->change_percentage < 0 ? 'decrease' : 'no-change');
+                            echo '<span class="change-indicator ' . $class . '">' . $arrow . ' ' .
+                                 number_format(abs($change->change_percentage), 2) . '%</span>';
+                        } else {
+                            echo '-';
+                        }
+                        ?>
+                    </td>
+                    <td><?php echo date_i18n('j F, Y', strtotime($change->change_date)); ?></td>
+                    <td>
+                        <button class="button button-small validate-change" data-id="<?php echo $change->id; ?>">
+                            <?php _e('Validera', 'lender-rate-history'); ?>
+                        </button>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <script>
+        jQuery(document).ready(function($) {
+            $('.validate-change').on('click', function() {
+                var changeId = $(this).data('id');
+                var $button = $(this);
+
+                $.post(ajaxurl, {
+                    action: 'lrh_validate_change',
+                    change_id: changeId,
+                    nonce: '<?php echo wp_create_nonce('lrh_admin_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        $button.closest('tr').fadeOut();
+                    }
+                });
+            });
+        });
+        </script>
+
+        <?php else: ?>
+        <p><?php _e('Inga ovaliderade ändringar att granska.', 'lender-rate-history'); ?></p>
+        <?php endif; ?>
+    </div>
+    <?php
+    return;
+}
 
 // Get all lenders with history
-$lenders_sql = "SELECT DISTINCT p.post_id, 
+$lenders_sql = "SELECT DISTINCT p.post_id,
                 COUNT(DISTINCT p.field_name) as field_count,
                 COUNT(*) as total_changes,
                 MAX(p.change_date) as last_change
