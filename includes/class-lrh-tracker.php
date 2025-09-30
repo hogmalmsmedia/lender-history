@@ -114,6 +114,11 @@ class LRH_Tracker {
             return;
         }
 
+        // Skip om vi är i en import - acf/update_value hanterar alla imports
+        if ($this->is_import) {
+            return;
+        }
+
         // Check if this is a lender post type
         if (!$this->is_lender_post($post_id)) {
             return;
