@@ -18,16 +18,28 @@ window.LRHChartTheme = {
         borderColor: 'rgba(0, 0, 0, 0.1)'  // Kantlinje
     },
     
-    // Bankfärger för jämförelser - tydliga, distinkta färger
+    // Bankfärger för jämförelser - tydliga, distinkta färger (20 färger)
     bankColors: [
         '#0073aa', // Mörkblå (SEB-stil)
         '#dc2626', // Röd (Danske Bank-stil)
-        '#059669', // Grön (Swedbank-stil) 
+        '#059669', // Grön (Swedbank-stil)
         '#8b5cf6', // Lila (Nordea-stil)
         '#f59e0b', // Orange (Handelsbanken-stil)
         '#ec4899', // Rosa (Bluestep-stil)
         '#06b6d4', // Cyan
-        '#84cc16'  // Lime
+        '#84cc16', // Lime
+        '#7c3aed', // Violett
+        '#b91c1c', // Mörkröd
+        '#15803d', // Mörkgrön
+        '#ea580c', // Brandstorange
+        '#0891b2', // Turkos
+        '#c026d3', // Magenta
+        '#047857', // Jade
+        '#0284c7', // Klarblå
+        '#be123c', // Crimson
+        '#6366f1', // Indigo
+        '#ca8a04', // Gul/guld
+        '#92400e'  // Brun
     ],
     
     // Formatera datum med år
@@ -191,42 +203,36 @@ window.LRHChartTheme = {
                         display: false,
                         drawBorder: false
                     },
-                    
+
                     border: {
                         display: false
                     },
-                    
+
                     ticks: {
                         padding: 8,
-                        font: {
-                            family: 'inherit',
-                            size: 11,
-                            weight: '400'
+                        font: function(context) {
+                            // Gör årtal-labels fetare
+                            if (context.tick && context.tick.label) {
+                                const label = context.tick.label;
+                                if (typeof label === 'string' && (label.includes(' 202') || label.includes(' 201'))) {
+                                    return {
+                                        family: 'inherit',
+                                        size: 11,
+                                        weight: '600'
+                                    };
+                                }
+                            }
+                            return {
+                                family: 'inherit',
+                                size: 11,
+                                weight: '400'
+                            };
                         },
                         color: this.colors.textColor,
                         maxRotation: 0,
                         autoSkip: true,
-                        maxTicksLimit: customOptions.maxTicksLimit || 10,
-                        
-                        // Visa år för vissa datum
-                        callback: function(value, index, ticks) {
-                            const label = this.getLabelForValue(value);
-                            
-                            // För första, sista och årsskiften - visa år
-                            if (index === 0 || 
-                                index === ticks.length - 1 || 
-                                label.includes('1 jan') ||
-                                (index % Math.floor(ticks.length / 5) === 0)) {
-                                
-                                // Om label inte redan har år, lägg till det
-                                if (!label.includes('202') && !label.includes('201')) {
-                                    // Detta är en förenklad label, försök hitta året
-                                    return label; // Behåll som den är för nu
-                                }
-                            }
-                            
-                            return label;
-                        }
+                        autoSkipPadding: 20,
+                        maxTicksLimit: 12 // Rimligt antal labels
                     }
                 }
             },
@@ -246,7 +252,7 @@ window.LRHChartTheme = {
             borderColor: color,
             backgroundColor: 'transparent', // Ingen fyllning
             borderWidth: options.borderWidth || 2,
-            tension: options.tension || 0.2, // Lite mjukare kurvor
+            tension: 0, // Inga kurvor - raka linjer mellan punkter
             pointRadius: options.pointRadius !== undefined ? options.pointRadius : 
                 (data.length > 50 ? 0 : 2), // Mindre punkter
             pointHoverRadius: 4,
@@ -274,31 +280,33 @@ window.LRHChartTheme = {
     
     // Helper för att formatera labels med år där det behövs
     createLabelsWithYears: function(dates) {
+        let lastYear = null;
+
         return dates.map((dateStr, index) => {
-            const date = new Date(dateStr);
-            const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 
+            // Parse date components manually to avoid timezone issues
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+
+            const year = parseInt(parts[0]);
+            const monthIndex = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[2]);
+
+            const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun',
                           'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
-            
-            const day = date.getDate();
-            const month = months[date.getMonth()];
-            const year = date.getFullYear();
-            
-            // Visa år för:
-            // - Första datapunkten
-            // - Sista datapunkten (kommer hanteras separat)
-            // - Årsskiften (januari)
-            // - Var 6:e månad om det är många datapunkter
-            if (index === 0 || 
-                date.getMonth() === 0 || 
-                (dates.length > 50 && index % 6 === 0)) {
+            const month = months[monthIndex];
+
+            // Visa år för första, sista, och när året ändras
+            const shouldShowYear =
+                index === 0 ||
+                index === dates.length - 1 ||
+                year !== lastYear;
+
+            lastYear = year;
+
+            if (shouldShowYear) {
                 return `${day} ${month} ${year}`;
             }
-            
-            // För sista datapunkten
-            if (index === dates.length - 1) {
-                return `${day} ${month} ${year}`;
-            }
-            
+
             return `${day} ${month}`;
         });
     }

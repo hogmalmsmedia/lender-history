@@ -203,24 +203,30 @@ class LRH_Database {
      * Get history for a specific field
      */
     public function get_field_history($post_id, $field_name, $limit = 30, $offset = 0) {
-        // Om limit är dagar
+        // Om limit är större än 365, tolka det som dagar istället för antal rader
         $date_filter = "";
-        if ($limit <= 365) {
+        if ($limit > 365) {
+            // Tolka som dagar och hämta alla ändringar inom den perioden
             $date_filter = "AND change_date >= DATE_SUB(NOW(), INTERVAL {$limit} DAY)";
-            $limit = 1000;
+            $limit = 10000; // Tillräckligt högt för att få alla ändringar
+        } elseif ($limit > 0 && $limit <= 365) {
+            // För värden mellan 1-365, tolka också som dagar
+            $date_filter = "AND change_date >= DATE_SUB(NOW(), INTERVAL {$limit} DAY)";
+            $limit = 10000;
         }
-        
+        // Annars, tolka limit som antal rader (för bakåtkompatibilitet)
+
         $sql = $this->wpdb->prepare(
-            "SELECT * FROM {$this->table_name} 
+            "SELECT * FROM {$this->table_name}
              WHERE post_id = %d AND field_name = %s {$date_filter}
-             ORDER BY change_date DESC 
+             ORDER BY change_date DESC
              LIMIT %d OFFSET %d",
             $post_id,
             $field_name,
             $limit,
             $offset
         );
-        
+
         return $this->wpdb->get_results($sql);
     }
     

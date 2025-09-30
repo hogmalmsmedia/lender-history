@@ -12,7 +12,7 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 
 	// Använd tema om det finns, annars fallback
 	const theme = window.LRHChartTheme || {
-		bankColors: ['#0073aa', '#dc2626', '#059669', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'],
+		bankColors: ['#0073aa', '#dc2626', '#059669', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#7c3aed', '#b91c1c', '#15803d', '#ea580c', '#0891b2', '#c026d3', '#047857', '#0284c7', '#be123c', '#6366f1', '#ca8a04', '#92400e'],
 		colors: { gray: '#6b7280' },
 		getDefaultOptions: function () {
 			return {};
@@ -24,28 +24,38 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 				borderColor: this.bankColors[colorIndex % this.bankColors.length],
 				backgroundColor: 'transparent',
 				borderWidth: 2,
-				tension: 0.2,
-				pointRadius: data.length > 50 ? 0 : 2,
+				stepped: true,
+				pointRadius: 0,
 				fill: false,
 				...opts
 			};
 		},
 		createLabelsWithYears: function (dates) {
+			// Skapa seenYears INUTI funktionen så den resettas varje gång
+			const seenYears = new Set();
+			let lastYear = null;
+
 			return dates.map((dateStr, index) => {
-				const date = new Date(dateStr);
+				// Parse date components manually to avoid timezone issues
+				const parts = dateStr.split('-');
+				if (parts.length !== 3) return dateStr;
+
+				const year = parseInt(parts[0]);
+				const monthIndex = parseInt(parts[1]) - 1;
+				const day = parseInt(parts[2]);
+
 				const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+				const month = months[monthIndex];
 
-				const day = date.getDate();
-				const month = months[date.getMonth()];
-				const year = date.getFullYear();
-
-				// Visa år för första, sista och årsskiften
-				if (
+				// Visa år för första, sista, och när året ändras
+				const shouldShowYear =
 					index === 0 ||
 					index === dates.length - 1 ||
-					date.getMonth() === 0 ||
-					(dates.length > 50 && index % 6 === 0)
-				) {
+					year !== lastYear;
+
+				lastYear = year;
+
+				if (shouldShowYear) {
 					return `${day} ${month} ${year}`;
 				}
 
@@ -59,6 +69,7 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 	let currentType = options.defaultType || 'snitt';
 	let activeBanks = new Map();
 	let timeRange = parseInt(container.querySelector('.lrh-time-slider').value);
+	let currentSortedDates = []; // Global reference till aktuella datum
 
 	// Initial setup - aktivera första 3 bankerna
 	banksData.forEach((bank, index) => {
@@ -78,14 +89,20 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			return { dates: [], values: [] };
 		}
 
-		const cutoffDate = new Date();
-		cutoffDate.setDate(cutoffDate.getDate() - days);
+		// Create cutoff date at midnight to avoid timezone issues
+		const today = new Date();
+		const cutoffDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - days);
 
 		const filtered = { dates: [], values: [] };
-		dates.forEach((date, i) => {
-			if (new Date(date) >= cutoffDate) {
-				filtered.dates.push(date);
-				filtered.values.push(values[i]);
+		dates.forEach((dateStr, i) => {
+			// Parse date string manually to avoid timezone issues
+			const parts = dateStr.split('-');
+			if (parts.length === 3) {
+				const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+				if (dateObj >= cutoffDate) {
+					filtered.dates.push(dateStr);
+					filtered.values.push(values[i]);
+				}
 			}
 		});
 
@@ -94,7 +111,6 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 
 	function updateChart() {
 		const datasets = [];
-		let allDates = new Set();
 		const rawDatasets = [];
 
 		// Samla data för aktiva banker
@@ -125,14 +141,12 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 				const filtered = filterDataByTimeRange(periodData.dates, periodData.values, timeRange);
 
 				if (filtered.dates.length > 0) {
-					filtered.dates.forEach((date) => allDates.add(date));
-
 					rawDatasets.push({
 						label: bank.name,
 						bankId: bank.id,
 						values: filtered.values,
 						dates: filtered.dates,
-						colorIndex: bankIndex // Använd bankIndex istället för colorIndex++
+						colorIndex: bankIndex
 					});
 				}
 			}
@@ -169,8 +183,15 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			}
 		}
 
+		// Hitta gemensamma datum mellan alla aktiva banker
+		let allDates = new Set();
+		rawDatasets.forEach(dataset => {
+			dataset.dates.forEach(date => allDates.add(date));
+		});
+
 		// Sortera datum
 		const sortedDates = Array.from(allDates).sort();
+		currentSortedDates = sortedDates; // Uppdatera global referens
 
 		// Justera datasets för alla datum
 		const alignedDatasets = rawDatasets.map((dataset) => {
@@ -179,21 +200,35 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 				return index !== -1 ? dataset.values[index] : null;
 			});
 
-			// Fyll i null-värden
-			let lastValidValue = null;
-			for (let i = 0; i < alignedData.length; i++) {
+			// Forward-fill ENDAST mellan första och sista datapunkten för denna bank
+			let firstNonNullIndex = alignedData.findIndex(v => v !== null);
+			let lastNonNullIndex = -1;
+			for (let i = alignedData.length - 1; i >= 0; i--) {
 				if (alignedData[i] !== null) {
-					lastValidValue = alignedData[i];
-				} else if (lastValidValue !== null) {
-					alignedData[i] = lastValidValue;
+					lastNonNullIndex = i;
+					break;
+				}
+			}
+
+			// Fyll endast mellan första och sista datapunkten
+			if (firstNonNullIndex !== -1 && lastNonNullIndex !== -1) {
+				let lastValidValue = null;
+				for (let i = firstNonNullIndex; i <= lastNonNullIndex; i++) {
+					if (alignedData[i] !== null) {
+						lastValidValue = alignedData[i];
+					} else if (lastValidValue !== null) {
+						alignedData[i] = lastValidValue;
+					}
 				}
 			}
 
 			// Använd tema för att skapa dataset
 			return theme.createDataset(dataset.label, alignedData, dataset.colorIndex, {
-				fill: false, // Ingen fyllning
-				tension: 0.2,
-				pointRadius: sortedDates.length > 50 ? 0 : 2
+				fill: false,
+				stepped: true, // Trappstegseffekt - horisontella linjer mellan ändringar
+				pointRadius: 0, // Inga synliga punkter - bara linjer
+				pointHoverRadius: 5, // Visa punkt vid hover
+				spanGaps: false // Ritar inte linjer över null (utanför datapunkterna)
 			});
 		});
 
@@ -218,7 +253,7 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 				backgroundColor: 'transparent',
 				borderWidth: 2,
 				borderDash: [8, 4],
-				tension: 0.2,
+				stepped: true,
 				pointRadius: 0,
 				pointHoverRadius: 0,
 				fill: false
@@ -229,15 +264,21 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		const labels = theme.createLabelsWithYears
 			? theme.createLabelsWithYears(sortedDates)
 			: sortedDates.map((dateStr) => {
-					const date = new Date(dateStr);
-					const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
-					return date.getDate() + ' ' + months[date.getMonth()];
+					// Parse date components manually to avoid timezone issues
+					const parts = dateStr.split('-');
+					if (parts.length === 3) {
+						const day = parseInt(parts[2]);
+						const monthIndex = parseInt(parts[1]) - 1;
+						const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+						return day + ' ' + months[monthIndex];
+					}
+					return dateStr;
 			  });
 
 		// Hämta tema options
 		const chartOptions = theme.getDefaultOptions
 			? theme.getDefaultOptions({
-					maxTicksLimit: sortedDates.length > 20 ? 10 : sortedDates.length,
+					maxTicksLimit: Math.min(sortedDates.length, 15),
 					plugins: {
 						legend: {
 							display: false // Vi använder custom legend
@@ -246,12 +287,15 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 							backgroundColor: 'rgba(255, 255, 255, 0.98)',
 							titleColor: '#111827',
 							titleFont: {
-								size: 13,
-								weight: 600
+								family: 'inherit',
+								size: 15,
+								weight: '700'
 							},
+							titleAlign: 'center',
 							bodyColor: '#4b5563',
 							bodyFont: {
-								size: 12
+								family: 'inherit',
+								size: 13
 							},
 							borderColor: '#e5e7eb',
 							borderWidth: 1,
@@ -283,52 +327,57 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 								title: function (tooltipItems) {
 									if (tooltipItems.length > 0) {
 										const index = tooltipItems[0].dataIndex;
-										const date = new Date(sortedDates[index]);
-										const months = [
-											'januari', 'februari', 'mars', 'april', 'maj', 'juni',
-											'juli', 'augusti', 'september', 'oktober', 'november', 'december'
-										];
-										return date.getDate() + ' ' + months[date.getMonth()] + ' ' + date.getFullYear();
+										// Använd currentSortedDates istället för sortedDates closure
+										if (index >= 0 && index < currentSortedDates.length) {
+											const dateStr = currentSortedDates[index];
+											// Parse date components manually to avoid timezone issues
+											const parts = dateStr.split('-');
+											if (parts.length === 3) {
+												const year = parseInt(parts[0]);
+												const month = parseInt(parts[1]) - 1; // 0-indexed
+												const day = parseInt(parts[2]);
+
+												const months = [
+													'januari', 'februari', 'mars', 'april', 'maj', 'juni',
+													'juli', 'augusti', 'september', 'oktober', 'november', 'december'
+												];
+												return day + ' ' + months[month] + ' ' + year;
+											}
+										}
 									}
 									return '';
 								},
 								label: function (context) {
-									if (context.parsed.y !== null) {
-										// Huvudrad med värde
+									if (context.parsed.y !== null && !isNaN(context.parsed.y)) {
+										// Huvudrad med bank, värde OCH förändring på samma rad
 										const value = context.parsed.y.toFixed(2).replace('.', ',') + '%';
 										const label = context.dataset.label;
 
-										// Begränsa längden på banknamn för bättre layout
+										// Begränsa längden på banknamn
 										const maxLength = 15;
 										const truncatedLabel = label.length > maxLength
 											? label.substring(0, maxLength) + '...'
 											: label;
 
-										return truncatedLabel + ': ' + value;
-									}
-									return null;
-								},
-								afterLabel: function (context) {
-									// Visa förändring endast om det finns tidigare data
-									if (context.dataIndex > 0 && context.parsed.y !== null) {
-										const currentValue = context.parsed.y;
-										const previousValue = context.dataset.data[context.dataIndex - 1];
-										if (previousValue !== null && previousValue !== undefined) {
-											const change = currentValue - previousValue;
-											if (Math.abs(change) > 0.001) { // Visa bara om förändringen är betydande
-												const arrow = change > 0 ? '↑' : '↓';
-												const changeText = Math.abs(change).toFixed(2).replace('.', ',');
-												return '  ' + arrow + ' ' + changeText + ' p.e.';
+										// Beräkna förändring
+										let changeText = '';
+										if (context.dataIndex > 0) {
+											const currentValue = context.parsed.y;
+											const previousValue = context.dataset.data[context.dataIndex - 1];
+											if (previousValue !== null && previousValue !== undefined) {
+												const change = currentValue - previousValue;
+												if (Math.abs(change) > 0.001) {
+													const arrow = change > 0 ? '↑' : '↓';
+													changeText = ' (' + arrow + ' ' + Math.abs(change).toFixed(2).replace('.', ',') + ' p.e.)';
+												}
 											}
 										}
+
+										return truncatedLabel + ': ' + value + changeText;
 									}
 									return null;
 								},
 								footer: function(tooltipItems) {
-									// Visa antal aktiva banker om fler än 3
-									if (tooltipItems.length > 3) {
-										return '\nVisar ' + tooltipItems.length + ' banker';
-									}
 									return null;
 								}
 							},
@@ -524,18 +573,32 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 				if (periodData && periodData.values && periodData.values.length > 0) {
 					hasValues = true;
 					const values = periodData.values;
+					const dates = periodData.dates;
 					const latestValue = values[values.length - 1];
 					const previousValue = values.length > 1 ? values[values.length - 2] : null;
 					const change = previousValue ? latestValue - previousValue : 0;
 					const changeClass = change > 0 ? 'lrh-increase' : change < 0 ? 'lrh-decrease' : 'lrh-no-change';
 					const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
 
+					// Formatera datum
+					let changeDate = '';
+					if (dates && dates.length > 1) {
+						const dateStr = dates[dates.length - 2];
+						const parts = dateStr.split('-');
+						if (parts.length === 3) {
+							const day = parseInt(parts[2]);
+							const monthIndex = parseInt(parts[1]) - 1;
+							const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+							changeDate = day + ' ' + months[monthIndex];
+						}
+					}
+
 					valueCards.push(`
 						<div class="lrh-value-card">
 							<div class="lrh-bank-name">${bank.name}</div>
 							<div class="lrh-bank-rate">${latestValue.toFixed(2).replace('.', ',')}%</div>
 							<div class="lrh-bank-change ${changeClass}">
-								${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')}%
+								${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')} p.e. fr. ${changeDate}
 							</div>
 						</div>
 					`);
@@ -693,13 +756,18 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		/* Tooltip överskrivningar för bättre utseende */
 		.chartjs-tooltip {
 			max-width: 300px !important;
-			font-family: system-ui, -apple-system, sans-serif !important;
+			font-family: inherit !important;
+			font-size: inherit !important;
+		}
+
+		.chartjs-tooltip * {
+			font-family: inherit !important;
+			font-size: inherit !important;
 		}
 
 		@media (max-width: 768px) {
 			.chartjs-tooltip {
 				max-width: calc(100vw - 40px) !important;
-				font-size: 12px !important;
 			}
 
 			/* Kompakt tooltip på mobil */

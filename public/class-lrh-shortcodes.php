@@ -511,16 +511,19 @@ public function interactive_chart_shortcode($atts) {
                     foreach (array_reverse($history) as $record) {
                         if (is_numeric($record->new_value) && $record->new_value > 0) {
                             $values[] = floatval($record->new_value);
-                            $dates[] = date('Y-m-d', strtotime($record->change_date));
+                            // Parse datetime properly and format as date only
+                            $datetime = new DateTime($record->change_date, new DateTimeZone('Europe/Stockholm'));
+                            $dates[] = $datetime->format('Y-m-d');
                         }
                     }
                 }
-                
+
                 $current_value = get_field($field, $bank->ID);
                 if (is_numeric($current_value) && $current_value > 0) {
                     if (empty($values) || $values[count($values) - 1] != floatval($current_value)) {
                         $values[] = floatval($current_value);
-                        $dates[] = date('Y-m-d');
+                        $datetime = new DateTime('now', new DateTimeZone('Europe/Stockholm'));
+                        $dates[] = $datetime->format('Y-m-d');
                     }
                 }
                 
