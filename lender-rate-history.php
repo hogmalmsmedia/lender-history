@@ -26,6 +26,11 @@ define('LRH_TABLE_NAME', 'lender_rate_history');
 
 // DIREKT efter plugin constants, INNAN allt annat
 add_action('plugins_loaded', function() {
+    // VIKTIGT: Ladda LRH_Value_Helper FÖRST eftersom andra klasser behöver den
+    if (file_exists(LRH_PLUGIN_DIR . 'includes/class-lrh-value-helper.php')) {
+        require_once LRH_PLUGIN_DIR . 'includes/class-lrh-value-helper.php';
+    }
+
     // Ladda dependencies
     if (file_exists(LRH_PLUGIN_DIR . 'includes/class-lrh-database.php')) {
         require_once LRH_PLUGIN_DIR . 'includes/class-lrh-database.php';
@@ -37,6 +42,10 @@ add_action('plugins_loaded', function() {
     if (file_exists(LRH_PLUGIN_DIR . 'includes/class-lrh-option-tracker.php')) {
         require_once LRH_PLUGIN_DIR . 'includes/class-lrh-option-tracker.php';
     }
+    // DEBUG TRACKER - Ta bort när problemet är löst
+   /* if (file_exists(LRH_PLUGIN_DIR . 'includes/class-lrh-debug-tracker.php')) {
+        require_once LRH_PLUGIN_DIR . 'includes/class-lrh-debug-tracker.php';
+    }*/
 }, 5);
 
 

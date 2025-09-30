@@ -22,6 +22,8 @@ class LRH_Database {
      * Insert rate change record - ANVÄNDER NU HJÄLPKLASS
      */
     public function insert_change($data) {
+        error_log("LRH DB: insert_change called with data: " . print_r($data, true));
+
         // Standardvärden
         $defaults = [
             'post_id' => null,
@@ -41,54 +43,64 @@ class LRH_Database {
             'validation_notes' => null,
             'user_id' => get_current_user_id()
         ];
-        
+
         $data = wp_parse_args($data, $defaults);
-        
+        error_log("LRH DB: After defaults: " . print_r($data, true));
+
         // Använd hjälpklass för normalisering
         if (isset($data['new_value'])) {
             $data['new_value'] = LRH_Value_Helper::normalize_value($data['new_value']);
+            error_log("LRH DB: Normalized new_value: " . $data['new_value']);
         }
         if (isset($data['old_value']) && $data['old_value'] !== null && $data['old_value'] !== '') {
             $data['old_value'] = LRH_Value_Helper::normalize_value($data['old_value']);
+            error_log("LRH DB: Normalized old_value: " . $data['old_value']);
         }
-        
+
         // Validering beroende på typ
         if ($data['source_type'] === 'post') {
             if (empty($data['post_id']) || empty($data['field_name']) || !isset($data['new_value'])) {
+                error_log("LRH DB: Validation failed for post type");
                 return false;
             }
         } else {
             if (empty($data['source_id']) || empty($data['field_name']) || !isset($data['new_value'])) {
+                error_log("LRH DB: Validation failed - source_id: " . $data['source_id'] . ", field_name: " . $data['field_name'] . ", new_value: " . $data['new_value']);
                 return false;
             }
         }
-        
+
         // Använd hjälpklass för att beräkna förändring
         $change_data = LRH_Value_Helper::calculate_change($data['old_value'], $data['new_value']);
         $data['change_amount'] = $change_data['change_amount'];
         $data['change_percentage'] = $change_data['change_percentage'];
         $data['change_type'] = $change_data['change_type'];
-        
+
         // Validera stora förändringar med hjälpklass
         if (LRH_Value_Helper::is_large_change($data['change_amount'])) {
             $data['is_validated'] = 0;
             $data['validation_notes'] = 'Large change detected - requires validation';
         }
-        
+
+        error_log("LRH DB: Final data before insert: " . print_r($data, true));
+
         // Insert
         $result = $this->wpdb->insert(
             $this->table_name,
             $data,
             $this->get_field_formats($data)
         );
-        
+
         if ($result === false) {
             error_log('LRH Database Error: ' . $this->wpdb->last_error);
+            error_log('LRH Database Query: ' . $this->wpdb->last_query);
             return false;
         }
-        
+
+        error_log("LRH DB: Insert successful, ID: " . $this->wpdb->insert_id);
+
         $this->update_stats('insert');
-        
+
         return $this->wpdb->insert_id;
     }
     
@@ -335,12 +347,20 @@ class LRH_Database {
     }
     
     /**
-     * Cleanup old records - DISABLED (obegränsad datalagring)
-     * Funktionen behålls för bakåtkompatibilitet men gör ingenting
+     * Cleanup old records
      */
     public function cleanup_old_records($days = 365) {
-        // Funktionen är inaktiverad - data lagras obegränsat
-        return 0;
+        $sql = $this->wpdb->prepare(
+            "DELETE FROM {$this->table_name} 
+             WHERE change_date < DATE_SUB(NOW(), INTERVAL %d DAY)",
+            $days
+        );
+        
+        $deleted = $this->wpdb->query($sql);
+        
+        $this->update_stats('cleanup', $deleted);
+        
+        return $deleted;
     }
     
     /**
@@ -459,31 +479,15 @@ class LRH_Database {
     
     /**
      * Batch insert for better performance - UPPDATERAD MED HJÄLPKLASS
-     * Hanterar stora mängder data genom att dela upp i mindre batcher
      */
     public function batch_insert($changes) {
         if (empty($changes)) {
             return false;
         }
-
-        // Om det är för många ändringar, dela upp i mindre batcher
-        $max_batch_size = 500;
-        if (count($changes) > $max_batch_size) {
-            $chunks = array_chunk($changes, $max_batch_size);
-            $total_inserted = 0;
-
-            foreach ($chunks as $chunk) {
-                if ($this->batch_insert($chunk)) {
-                    $total_inserted += count($chunk);
-                }
-            }
-
-            return $total_inserted > 0;
-        }
-
+        
         $values = [];
         $placeholders = [];
-
+        
         foreach ($changes as $change) {
             // Defaults
             $change = wp_parse_args($change, [
@@ -498,23 +502,23 @@ class LRH_Database {
                 'import_source' => 'manual',
                 'validation_notes' => null
             ]);
-
+            
             // Använd hjälpklass för normalisering och beräkning
             $new_value = LRH_Value_Helper::normalize_value($change['new_value']);
             $old_value = isset($change['old_value']) ? LRH_Value_Helper::normalize_value($change['old_value']) : null;
-
+            
             $change_data = LRH_Value_Helper::calculate_change($old_value, $new_value);
-
+            
             $change['new_value'] = $new_value;
             $change['old_value'] = $old_value;
             $change['change_amount'] = $change_data['change_amount'];
             $change['change_percentage'] = $change_data['change_percentage'];
             $change['change_type'] = $change_data['change_type'];
-
+            
             $change['is_validated'] = LRH_Value_Helper::is_large_change($change_data['change_amount']) ? 0 : 1;
-
+            
             $placeholders[] = "(%d, %s, %s, %s, %s, %s, %f, %f, %f, %f, %s, %s, %s, %d, %s, %d)";
-
+            
             array_push($values,
                 $change['post_id'],
                 $change['source_type'],
@@ -534,19 +538,19 @@ class LRH_Database {
                 $change['user_id']
             );
         }
-
-        $sql = "INSERT INTO {$this->table_name}
-                (post_id, source_type, source_id, source_name, field_name, field_category,
-                 old_value, new_value, change_amount, change_percentage, change_date,
-                 change_type, import_source, is_validated, validation_notes, user_id)
+        
+        $sql = "INSERT INTO {$this->table_name} 
+                (post_id, source_type, source_id, source_name, field_name, field_category, 
+                 old_value, new_value, change_amount, change_percentage, change_date, 
+                 change_type, import_source, is_validated, validation_notes, user_id) 
                 VALUES " . implode(', ', $placeholders);
-
+        
         $result = $this->wpdb->query($this->wpdb->prepare($sql, $values));
-
+        
         if ($result !== false) {
             $this->update_stats('insert', count($changes));
         }
-
+        
         return $result;
     }
 }

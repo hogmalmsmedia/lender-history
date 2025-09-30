@@ -154,22 +154,31 @@ class LRH_External_Sources {
      * Record option change directly
      */
     public function record_option_change_direct($source, $new_value) {
+        // Debug logging
+        error_log("LRH: record_option_change_direct called");
+        error_log("LRH: Source: " . print_r($source, true));
+        error_log("LRH: Raw new value: " . print_r($new_value, true));
+
         // Normalisera värdet baserat på format
         $new_value = $this->normalize_value($new_value, $source['value_format'] ?? 'percentage');
-        
+        error_log("LRH: Normalized new value: " . $new_value);
+
         // Hämta gamla värdet från databasen
         $old_value = $this->database->get_latest_value_for_source(
             $source['source_type'],
             $source['source_id'],
             $source['option_field']
         );
-        
+        error_log("LRH: Old value from DB: " . print_r($old_value, true));
+
         // Spara om värdet har ändrats eller om det är första gången
         if ($old_value === null || $this->has_value_changed($old_value, $new_value)) {
+            error_log("LRH: Value has changed or is initial, saving...");
+
             // Beräkna förändring baserat på format
             $change_data = $this->calculate_change($old_value, $new_value, $source['value_format'] ?? 'percentage');
-            
-            $result = $this->database->insert_change([
+
+            $data_to_insert = [
                 'post_id' => null,
                 'source_type' => $source['source_type'],
                 'source_id' => $source['source_id'],
@@ -181,15 +190,21 @@ class LRH_External_Sources {
                 'change_amount' => $change_data['change_amount'],
                 'change_percentage' => $change_data['change_percentage'],
                 'change_type' => $old_value === null ? 'initial' : 'update',
-                'import_source' => 'option_update',
-                'value_format' => $source['value_format'] ?? 'percentage',
-                'value_suffix' => $source['value_suffix'] ?? '%',
-                'decimals' => $source['decimals'] ?? 2
-            ]);
-            
+                'import_source' => 'option_update'
+                // Ta bort value_format, value_suffix, decimals - de finns inte i databastabellen
+            ];
+
+            error_log("LRH: Data to insert: " . print_r($data_to_insert, true));
+
+            $result = $this->database->insert_change($data_to_insert);
+
+            error_log("LRH: Insert result: " . print_r($result, true));
+
             return $result;
+        } else {
+            error_log("LRH: Value has not changed, skipping save");
         }
-        
+
         return false;
     }
     
@@ -257,10 +272,8 @@ class LRH_External_Sources {
             'change_date' => current_time('mysql'),
             'import_source' => 'manual_entry',
             'validation_notes' => '',
-            'post_id' => null,
-            'value_format' => $value_format,
-            'value_suffix' => $value_suffix,
-            'decimals' => $decimals
+            'post_id' => null
+            // Ta bort value_format, value_suffix, decimals - spara dem separat i source config istället
         ];
         
         $entry = wp_parse_args($data, $defaults);
