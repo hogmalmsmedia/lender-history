@@ -34,17 +34,43 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			// Skapa seenYears INUTI funktionen så den resettas varje gång
 			const seenYears = new Set();
 			let lastYear = null;
+			const cutoffDate = new Date(2025, 8, 30); // 2025-09-30 (månad är 0-indexerad)
 
 			return dates.map((dateStr, index) => {
-				// Parse date components manually to avoid timezone issues
-				const parts = dateStr.split('-');
-				if (parts.length !== 3) return dateStr;
+				// Parse datum och typ (format: "2024-10-01|snitt" eller "2024-10-01|list")
+				const parts = dateStr.split('|');
+				const datePart = parts[0];
+				const fieldType = parts[1] || 'list'; // Default till list om typ saknas
 
-				const year = parseInt(parts[0]);
-				const monthIndex = parseInt(parts[1]) - 1;
-				const day = parseInt(parts[2]);
+				// Parse date components manually to avoid timezone issues
+				const dateComponents = datePart.split('-');
+				if (dateComponents.length !== 3) return dateStr;
+
+				const year = parseInt(dateComponents[0]);
+				const monthIndex = parseInt(dateComponents[1]) - 1;
+				const day = parseInt(dateComponents[2]);
 
 				const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+				const fullMonths = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+				// För snitträntor: kontrollera datum
+				if (fieldType === 'snitt') {
+					const currentDate = new Date(year, monthIndex, day);
+
+					// Om efter 2025-09-30: visa föregående månads namn
+					if (currentDate > cutoffDate) {
+						let prevMonthIndex = monthIndex - 1;
+						if (prevMonthIndex < 0) {
+							prevMonthIndex = 11;
+						}
+						return fullMonths[prevMonthIndex];
+					} else {
+						// Om före eller på 2025-09-30: visa månadens namn som det registrerades
+						return fullMonths[monthIndex];
+					}
+				}
+
+				// För listräntor: visa datum som vanligt
 				const month = months[monthIndex];
 
 				// Visa år för första, sista, och när året ändras
@@ -95,10 +121,14 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 
 		const filtered = { dates: [], values: [] };
 		dates.forEach((dateStr, i) => {
+			// Parse datum och typ (format: "2024-10-01|snitt" eller "2024-10-01|list")
+			const parts = dateStr.split('|');
+			const datePart = parts[0];
+
 			// Parse date string manually to avoid timezone issues
-			const parts = dateStr.split('-');
-			if (parts.length === 3) {
-				const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+			const dateComponents = datePart.split('-');
+			if (dateComponents.length === 3) {
+				const dateObj = new Date(parseInt(dateComponents[0]), parseInt(dateComponents[1]) - 1, parseInt(dateComponents[2]));
 				if (dateObj >= cutoffDate) {
 					filtered.dates.push(dateStr);
 					filtered.values.push(values[i]);
@@ -264,12 +294,38 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 		const labels = theme.createLabelsWithYears
 			? theme.createLabelsWithYears(sortedDates)
 			: sortedDates.map((dateStr) => {
+					const cutoffDate = new Date(2025, 8, 30); // 2025-09-30
+
+					// Parse datum och typ (format: "2024-10-01|snitt" eller "2024-10-01|list")
+					const parts = dateStr.split('|');
+					const datePart = parts[0];
+					const fieldType = parts[1] || 'list';
+
 					// Parse date components manually to avoid timezone issues
-					const parts = dateStr.split('-');
-					if (parts.length === 3) {
-						const day = parseInt(parts[2]);
-						const monthIndex = parseInt(parts[1]) - 1;
+					const dateComponents = datePart.split('-');
+					if (dateComponents.length === 3) {
+						const year = parseInt(dateComponents[0]);
+						const day = parseInt(dateComponents[2]);
+						const monthIndex = parseInt(dateComponents[1]) - 1;
 						const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+						const fullMonths = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+						// För snitträntor: kontrollera datum
+						if (fieldType === 'snitt') {
+							const currentDate = new Date(year, monthIndex, day);
+
+							// Om efter 2025-09-30: visa föregående månads namn
+							if (currentDate > cutoffDate) {
+								let prevMonth = monthIndex - 1;
+								if (prevMonth < 0) prevMonth = 11;
+								return fullMonths[prevMonth];
+							} else {
+								// Om före eller på 2025-09-30: visa månadens namn som det registrerades
+								return fullMonths[monthIndex];
+							}
+						}
+
+						// För listräntor: visa datum som vanligt
 						return day + ' ' + months[monthIndex];
 					}
 					return dateStr;
@@ -327,20 +383,48 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 								title: function (tooltipItems) {
 									if (tooltipItems.length > 0) {
 										const index = tooltipItems[0].dataIndex;
+										const cutoffDate = new Date(2025, 8, 30); // 2025-09-30
+
 										// Använd currentSortedDates istället för sortedDates closure
 										if (index >= 0 && index < currentSortedDates.length) {
 											const dateStr = currentSortedDates[index];
+											// Parse datum och typ (format: "2024-10-01|snitt" eller "2024-10-01|list")
+											const parts = dateStr.split('|');
+											const datePart = parts[0];
+											const fieldType = parts[1] || 'list';
+
 											// Parse date components manually to avoid timezone issues
-											const parts = dateStr.split('-');
-											if (parts.length === 3) {
-												const year = parseInt(parts[0]);
-												const month = parseInt(parts[1]) - 1; // 0-indexed
-												const day = parseInt(parts[2]);
+											const dateComponents = datePart.split('-');
+											if (dateComponents.length === 3) {
+												const year = parseInt(dateComponents[0]);
+												const month = parseInt(dateComponents[1]) - 1; // 0-indexed
+												const day = parseInt(dateComponents[2]);
 
 												const months = [
 													'januari', 'februari', 'mars', 'april', 'maj', 'juni',
 													'juli', 'augusti', 'september', 'oktober', 'november', 'december'
 												];
+
+												// För snitträntor: kontrollera datum
+												if (fieldType === 'snitt') {
+													const currentDate = new Date(year, month, day);
+
+													// Om efter 2025-09-30: visa föregående månads namn med år
+													if (currentDate > cutoffDate) {
+														let prevMonth = month - 1;
+														let prevYear = year;
+														if (prevMonth < 0) {
+															prevMonth = 11;
+															prevYear = year - 1;
+														}
+														return months[prevMonth] + ' ' + prevYear;
+													} else {
+														// Om före eller på 2025-09-30: visa månadens namn med år
+														return months[month] + ' ' + year;
+													}
+												}
+
+												// För listräntor: visa datum som vanligt
 												return day + ' ' + months[month] + ' ' + year;
 											}
 										}
@@ -464,6 +548,14 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 					}
 			  };
 
+		// Lägg till padding på höger sida av grafen
+		if (chartOptions.layout === undefined) {
+			chartOptions.layout = {};
+		}
+		chartOptions.layout.padding = {
+			right: 15
+		};
+
 		// Skapa eller uppdatera chart
 		if (chart) {
 			chart.data.labels = labels;
@@ -477,6 +569,19 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 					datasets: alignedDatasets
 				},
 				options: chartOptions
+			});
+
+			// Lägg till click-outside handler för att dölja tooltip på mobil
+			const chartArea = canvas.parentElement;
+			document.addEventListener('click', function(e) {
+				// Kontrollera om klicket är utanför canvas
+				if (!canvas.contains(e.target) && !chartArea.contains(e.target)) {
+					// Dölj tooltip
+					if (chart && chart.tooltip) {
+						chart.tooltip.setActiveElements([], {x: 0, y: 0});
+						chart.update();
+					}
+				}
 			});
 		}
 
@@ -580,16 +685,76 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 					const changeClass = change > 0 ? 'lrh-increase' : change < 0 ? 'lrh-decrease' : 'lrh-no-change';
 					const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
 
-					// Formatera datum
+					// Formatera aktuellt datum och förändrings-datum
+					let currentDate = '';
 					let changeDate = '';
+					const cutoffDate = new Date(2025, 8, 30); // 2025-09-30
+
+					// Formatera AKTUELLT datum (senaste värdet)
+					if (dates && dates.length > 0) {
+						const latestDateStr = dates[dates.length - 1];
+						const parts = latestDateStr.split('|');
+						const datePart = parts[0];
+						const fieldType = parts[1] || 'list';
+
+						const dateComponents = datePart.split('-');
+						if (dateComponents.length === 3) {
+							const year = parseInt(dateComponents[0]);
+							const day = parseInt(dateComponents[2]);
+							const monthIndex = parseInt(dateComponents[1]) - 1;
+							const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+							const fullMonths = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+							if (fieldType === 'snitt') {
+								const currentDateObj = new Date(year, monthIndex, day);
+								if (currentDateObj > cutoffDate) {
+									let prevMonth = monthIndex - 1;
+									let prevYear = year;
+									if (prevMonth < 0) {
+										prevMonth = 11;
+										prevYear = year - 1;
+									}
+									currentDate = fullMonths[prevMonth] + ' ' + prevYear;
+								} else {
+									currentDate = fullMonths[monthIndex] + ' ' + year;
+								}
+							} else {
+								currentDate = day + ' ' + months[monthIndex] + ' ' + year;
+							}
+						}
+					}
+
+					// Formatera FÖRÄNDRINGSDATUM (föregående värde)
 					if (dates && dates.length > 1) {
 						const dateStr = dates[dates.length - 2];
-						const parts = dateStr.split('-');
-						if (parts.length === 3) {
-							const day = parseInt(parts[2]);
-							const monthIndex = parseInt(parts[1]) - 1;
+						const parts = dateStr.split('|');
+						const datePart = parts[0];
+						const fieldType = parts[1] || 'list';
+
+						const dateComponents = datePart.split('-');
+						if (dateComponents.length === 3) {
+							const year = parseInt(dateComponents[0]);
+							const day = parseInt(dateComponents[2]);
+							const monthIndex = parseInt(dateComponents[1]) - 1;
 							const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
-							changeDate = day + ' ' + months[monthIndex];
+							const fullMonths = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+							if (fieldType === 'snitt') {
+								const currentDateObj = new Date(year, monthIndex, day);
+								if (currentDateObj > cutoffDate) {
+									let prevMonth = monthIndex - 1;
+									let prevYear = year;
+									if (prevMonth < 0) {
+										prevMonth = 11;
+										prevYear = year - 1;
+									}
+									changeDate = fullMonths[prevMonth] + ' ' + prevYear;
+								} else {
+									changeDate = fullMonths[monthIndex] + ' ' + year;
+								}
+							} else {
+								changeDate = day + ' ' + months[monthIndex];
+							}
 						}
 					}
 
@@ -597,9 +762,12 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 						<div class="lrh-value-card">
 							<div class="lrh-bank-name">${bank.name}</div>
 							<div class="lrh-bank-rate">${latestValue.toFixed(2).replace('.', ',')}%</div>
-							<div class="lrh-bank-change ${changeClass}">
-								${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')} p.e. fr. ${changeDate}
-							</div>
+							<div class="lrh-current-date">${currentDate}</div>
+							${previousValue !== null ? `
+								<div class="lrh-bank-change ${changeClass}">
+									${arrow} ${Math.abs(change).toFixed(2).replace('.', ',')} p.e. från ${changeDate}
+								</div>
+							` : ''}
 						</div>
 					`);
 				}
@@ -738,12 +906,20 @@ function initLRHInteractiveChart(chartId, banksData, options) {
 			font-size: 19px;
 			font-weight: 700;
 			color: #111827;
-			margin-bottom: 3px;
+			margin-bottom: 2px;
 			line-height: 1;
 		}
 
-		.lrh-bank-change {
+		.lrh-current-date {
 			font-size: 11px;
+			color: #6b7280;
+			margin-bottom: 4px;
+			font-weight: 500;
+			line-height: 1.2;
+		}
+
+		.lrh-bank-change {
+			font-size: 10px;
 			font-weight: 600;
 			line-height: 1.2;
 		}

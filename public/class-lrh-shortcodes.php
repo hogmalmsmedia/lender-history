@@ -26,6 +26,7 @@ class LRH_Shortcodes {
         add_shortcode('lrh_latest_changes', [$this, 'latest_changes_shortcode']);
 		add_shortcode('lrh_interactive_chart', [$this, 'interactive_chart_shortcode']);
 		add_shortcode('lrh_external_chart', [$this, 'external_chart_shortcode']);
+		add_shortcode('lrh_changes_timeline', [$this, 'changes_timeline_shortcode']);
 
     }
     
@@ -145,7 +146,7 @@ class LRH_Shortcodes {
 				// Hämta senaste ändringsdatum för detta fält
 				$database = new LRH_Database();
 				$latest_change = $database->get_latest_change($atts['post_id'], $field_name);
-				$change_date = $latest_change ? date_i18n('j M. Y', strtotime($latest_change->change_date)) : '-';
+				$change_date = $latest_change ? $this->format_date_for_field($latest_change->change_date, $field_name) : '-';
 				?>
 				<tr>
 					<td><?php echo $this->format_period_label($period); ?></td>
@@ -239,7 +240,7 @@ class LRH_Shortcodes {
 			foreach (array_reverse($history) as $record) {
 				if (is_numeric($record->new_value) && $record->new_value > 0) {
 					$values[] = floatval($record->new_value);
-					$dates[] = date_i18n('j M. Y', strtotime($record->change_date));
+					$dates[] = $this->format_date_for_field($record->change_date, $atts['field']);
 				}
 			}
 		}
@@ -296,7 +297,7 @@ class LRH_Shortcodes {
         foreach (array_reverse($history) as $record) {
             if (is_numeric($record->new_value) && $record->new_value > 0) {
                 $values[] = floatval($record->new_value);
-                $dates[] = date_i18n('j M. Y', strtotime($record->change_date));
+                $dates[] = $this->format_date_for_field($record->change_date, $atts['field']);
                 $previous_value = floatval($record->new_value);
             }
         }
@@ -446,7 +447,7 @@ public function interactive_chart_shortcode($atts) {
         'banks' => '',
         'periods' => '3_man,1_ar,2_ar,3_ar,5_ar,10_ar',
         'types' => 'snitt,list',
-        'default_type' => 'snitt',
+        'default_type' => 'list',
         'days' => 365,
         'height' => 400,
         'show_average' => 'yes',
@@ -513,7 +514,8 @@ public function interactive_chart_shortcode($atts) {
                             $values[] = floatval($record->new_value);
                             // Parse datetime properly and format as date only
                             $datetime = new DateTime($record->change_date, new DateTimeZone('Europe/Stockholm'));
-                            $dates[] = $datetime->format('Y-m-d');
+                            // Lagra både datum och fälttyp för JavaScript
+                            $dates[] = $datetime->format('Y-m-d') . '|' . $type;
                         }
                     }
                 }
@@ -523,7 +525,7 @@ public function interactive_chart_shortcode($atts) {
                     if (empty($values) || $values[count($values) - 1] != floatval($current_value)) {
                         $values[] = floatval($current_value);
                         $datetime = new DateTime('now', new DateTimeZone('Europe/Stockholm'));
-                        $dates[] = $datetime->format('Y-m-d');
+                        $dates[] = $datetime->format('Y-m-d') . '|' . $type;
                     }
                 }
                 
@@ -621,7 +623,8 @@ public function interactive_chart_shortcode($atts) {
 
         <!-- Aktuella värden -->
         <div class="lrh-current-values" style="margin-top: 30px;">
-            <h4 style="margin-bottom: 15px; font-size: 16px; font-weight: 600; color: #111827;">Aktuella värden</h4>
+            <h4 style="margin-bottom:0px;">Aktuella värden</h4>
+			<p class="text-xs" style="margin-bottom:20px;">* p.e. = procentenheter</p>
             <div class="lrh-values-cards"></div>
         </div>
     </div>
@@ -657,8 +660,43 @@ public function interactive_chart_shortcode($atts) {
             '7_ar' => __('7 år', 'lender-rate-history'),
             '10_ar' => __('10 år', 'lender-rate-history'),
         ];
-        
+
         return isset($labels[$period]) ? $labels[$period] : $period;
+    }
+
+	/**
+     * Format date for field - snitträntor visar föregående månad (efter 2025-09-30)
+     */
+    private function format_date_for_field($date, $field_name, $format = 'j M. Y') {
+        // Kontrollera om fältet är en snittränta
+        $is_snitt = (strpos($field_name, 'snitt') === 0 || strpos($field_name, 'snitt_') !== false);
+
+        if ($is_snitt) {
+            $timestamp = strtotime($date);
+            $cutoff_date = strtotime('2025-09-30');
+
+            $swedish_months = [
+                1 => 'januari', 2 => 'februari', 3 => 'mars', 4 => 'april',
+                5 => 'maj', 6 => 'juni', 7 => 'juli', 8 => 'augusti',
+                9 => 'september', 10 => 'oktober', 11 => 'november', 12 => 'december'
+            ];
+
+            // Om datumet är efter 2025-09-30: visa föregående månads namn med år
+            if ($timestamp > $cutoff_date) {
+                $prev_month_timestamp = strtotime('-1 month', $timestamp);
+                $month_number = (int) date('n', $prev_month_timestamp);
+                $year = (int) date('Y', $prev_month_timestamp);
+                return $swedish_months[$month_number] . ' ' . $year;
+            } else {
+                // Om före eller på 2025-09-30: visa månadens namn med år
+                $month_number = (int) date('n', $timestamp);
+                $year = (int) date('Y', $timestamp);
+                return $swedish_months[$month_number] . ' ' . $year;
+            }
+        } else {
+            // För listräntor: visa datum som vanligt
+            return date_i18n($format, strtotime($date));
+        }
     }
 	
 	/**
@@ -974,5 +1012,296 @@ public function external_chart_shortcode($atts) {
 
     return ob_get_clean();
 }
+
+	/**
+	 * Changes timeline shortcode - SEO & AI optimized
+	 * Usage: [lrh_changes_timeline limit="20" type="snitt" days="30" change_type="all"]
+	 */
+	public function changes_timeline_shortcode($atts) {
+		$atts = shortcode_atts([
+			'limit' => 20,
+			'type' => 'all', // 'all', 'snitt', 'list'
+			'days' => 365,
+			'change_type' => 'all', // 'all', 'decrease', 'increase'
+			'class' => ''
+		], $atts, 'lrh_changes_timeline');
+
+		// Hämta ändringar från databasen
+		$database = new LRH_Database();
+		$changes = $database->get_recent_changes([
+			'limit' => $atts['limit'] * 10, // Hämta fler för att kunna gruppera
+			'field_category' => 'mortgage',
+			'days' => $atts['days'],
+			'validated_only' => true
+		]);
+
+		if (empty($changes)) {
+			return '<p>' . __('Inga ändringar att visa.', 'lender-rate-history') . '</p>';
+		}
+
+		// Gruppera ändringar per bank och datum
+		$grouped = $this->group_changes_by_bank_date($changes, $atts['type'], $atts['change_type']);
+
+		// Begränsa till limit antal rader efter gruppering
+		$grouped = array_slice($grouped, 0, $atts['limit']);
+
+		if (empty($grouped)) {
+			return '<p>' . __('Inga ändringar att visa för vald typ.', 'lender-rate-history') . '</p>';
+		}
+
+		ob_start();
+		?>
+		<table class="lrh-timeline-table <?php echo esc_attr($atts['class']); ?>">
+			<thead>
+				<tr>
+					<th scope="col"><?php _e('Datum', 'lender-rate-history'); ?></th>
+					<th scope="col"><?php _e('Bank', 'lender-rate-history'); ?></th>
+					<th scope="col"><?php _e('Ändring', 'lender-rate-history'); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ($grouped as $item): ?>
+				<tr itemscope itemtype="https://schema.org/PriceSpecification">
+					<td>
+						<time datetime="<?php echo esc_attr($item['datetime']); ?>">
+							<?php echo esc_html($item['display_date']); ?>
+						</time>
+					</td>
+					<td itemprop="name">
+						<a href="<?php echo esc_url($item['bank_url']); ?>">
+							<?php echo esc_html($item['bank_name']); ?>
+						</a>
+					</td>
+					<td itemprop="description">
+						<?php echo wp_kses_post($item['description']); ?>
+					</td>
+				</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Gruppera ändringar per bank och datum
+	 */
+	private function group_changes_by_bank_date($changes, $type_filter, $change_type_filter = 'all') {
+		$grouped = [];
+
+		foreach ($changes as $change) {
+			// Filtrera på typ om specificerat
+			if ($type_filter !== 'all') {
+				$is_snitt = (strpos($change->field_name, 'snitt') === 0 || strpos($change->field_name, 'snitt_') !== false);
+				if ($type_filter === 'snitt' && !$is_snitt) continue;
+				if ($type_filter === 'list' && $is_snitt) continue;
+			}
+
+			// Filtrera på ändringstyp (höjning/sänkning) om specificerat
+			if ($change_type_filter !== 'all') {
+				$change_amount = $change->old_value !== null ? ($change->new_value - $change->old_value) : 0;
+
+				if ($change_type_filter === 'decrease' && $change_amount >= -0.001) continue; // Bara sänkningar
+				if ($change_type_filter === 'increase' && $change_amount <= 0.001) continue;  // Bara höjningar
+			}
+
+			$post = get_post($change->post_id);
+			if (!$post) continue;
+
+			$date = date('Y-m-d', strtotime($change->change_date));
+			$key = $change->post_id . '_' . $date;
+
+			if (!isset($grouped[$key])) {
+				$grouped[$key] = [
+					'post_id' => $change->post_id,
+					'bank_name' => $post->post_title,
+					'bank_url' => get_permalink($post->ID),
+					'date' => $date,
+					'datetime' => $change->change_date,
+					'changes' => []
+				];
+			}
+
+			$grouped[$key]['changes'][] = $change;
+		}
+
+		// Formatera varje grupperad post
+		$result = [];
+		foreach ($grouped as $item) {
+			$description = $this->format_change_description($item['changes']);
+
+			// Hoppa över rader utan beskrivning
+			if (empty($description)) {
+				continue;
+			}
+
+			$result[] = [
+				'datetime' => date('c', strtotime($item['datetime'])), // ISO 8601 för schema.org
+				'display_date' => $this->format_timeline_date($item['datetime'], $item['changes']),
+				'bank_name' => $item['bank_name'],
+				'bank_url' => $item['bank_url'],
+				'description' => $description
+			];
+		}
+
+		// Sortera efter datum (nyast först)
+		usort($result, function($a, $b) {
+			return strtotime($b['datetime']) - strtotime($a['datetime']);
+		});
+
+		return $result;
+	}
+
+	/**
+	 * Formatera datum för timeline (följer samma logik som tidigare)
+	 */
+	private function format_timeline_date($datetime, $changes) {
+		// Kolla om det är snitträntor eller listräntor
+		$is_snitt = false;
+		foreach ($changes as $change) {
+			if (strpos($change->field_name, 'snitt') === 0 || strpos($change->field_name, 'snitt_') !== false) {
+				$is_snitt = true;
+				break;
+			}
+		}
+
+		$timestamp = strtotime($datetime);
+		$cutoff_date = strtotime('2025-09-30');
+
+		$swedish_months = [
+			1 => 'januari', 2 => 'februari', 3 => 'mars', 4 => 'april',
+			5 => 'maj', 6 => 'juni', 7 => 'juli', 8 => 'augusti',
+			9 => 'september', 10 => 'oktober', 11 => 'november', 12 => 'december'
+		];
+
+		if ($is_snitt) {
+			// För snitträntor: visa månadsnamn
+			if ($timestamp > $cutoff_date) {
+				$prev_month_timestamp = strtotime('-1 month', $timestamp);
+				$month_number = (int) date('n', $prev_month_timestamp);
+				$year = (int) date('Y', $prev_month_timestamp);
+				return $swedish_months[$month_number] . ' ' . $year;
+			} else {
+				$month_number = (int) date('n', $timestamp);
+				$year = (int) date('Y', $timestamp);
+				return $swedish_months[$month_number] . ' ' . $year;
+			}
+		} else {
+			// För listräntor: visa datum
+			return date_i18n('j F Y', $timestamp);
+		}
+	}
+
+	/**
+	 * Formatera ändrings-beskrivning (SEO & AI optimerad)
+	 */
+	private function format_change_description($changes) {
+		if (empty($changes)) return '';
+
+		// Separera höjningar och sänkningar
+		$increases = [];
+		$decreases = [];
+		$neutral = [];
+
+		foreach ($changes as $change) {
+			$field_info = LRH_Helpers::parse_field_name($change->field_name);
+			$change_amount = $change->old_value !== null ? ($change->new_value - $change->old_value) : 0;
+
+			$item = [
+				'field' => $field_info,
+				'amount' => $change_amount,
+				'new_value' => $change->new_value
+			];
+
+			if ($change_amount > 0.001) {
+				$increases[] = $item;
+			} elseif ($change_amount < -0.001) {
+				$decreases[] = $item;
+			} else {
+				$neutral[] = $item;
+			}
+		}
+
+		$parts = [];
+
+		// Sänkningar först (vanligast och positivt för användare)
+		if (!empty($decreases)) {
+			$parts[] = $this->format_change_part($decreases, 'decrease');
+		}
+
+		// Höjningar
+		if (!empty($increases)) {
+			$parts[] = $this->format_change_part($increases, 'increase');
+		}
+
+		return implode('.<br>', $parts);
+
+	}
+
+	/**
+	 * Formatera en del av beskrivningen (höjningar eller sänkningar)
+	 */
+	private function format_change_part($items, $direction) {
+		$verb = $direction === 'decrease' ? 'Sänker' : 'Höjer';
+		$class = $direction === 'decrease' ? 'lrh-decrease' : 'lrh-increase';
+		$sign = $direction === 'decrease' ? '-' : '+';
+
+		// Om det bara är en ändring
+		if (count($items) === 1) {
+			$item = $items[0];
+			$type_label = strtolower($item['field']['type_label']);
+			$period_label = $item['field']['period_label'];
+			$formatted_amount = number_format(abs($item['amount']), 2, ',', '');
+
+			return sprintf(
+				'%s %s (%s) med <strong class="%s">%s%s%%</strong>',
+				$verb,
+				$type_label,
+				$period_label,
+				esc_attr($class),
+				$sign,
+				$formatted_amount
+			);
+		}
+
+		// Om det är 2-3 ändringar, lista dem
+		if (count($items) <= 3) {
+			$details = [];
+			foreach ($items as $item) {
+				$formatted_amount = number_format(abs($item['amount']), 2, ',', '');
+				$details[] = sprintf(
+					'%s (<strong class="%s">%s%s%%</strong>)',
+					$item['field']['period_label'],
+					esc_attr($class),
+					$sign,
+					$formatted_amount
+				);
+			}
+
+			$type_label = strtolower($items[0]['field']['type_label']);
+			return sprintf(
+				'%s %s: %s',
+				$verb,
+				$type_label,
+				implode(', ', $details)
+			);
+		}
+
+		// Om fler än 3, gruppera
+		$min_change = min(array_column($items, 'amount'));
+		$max_change = max(array_column($items, 'amount'));
+		$type_label = strtolower($items[0]['field']['type_label']);
+
+		return sprintf(
+			'%s %d bindningstider (%s) med <strong class="%s">%s%s–%s%%</strong>',
+			$verb,
+			count($items),
+			$type_label,
+			esc_attr($class),
+			$sign,
+			number_format(abs($min_change), 2, ',', ''),
+			number_format(abs($max_change), 2, ',', '')
+		);
+	}
 
 }

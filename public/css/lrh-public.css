@@ -8,8 +8,8 @@
    ========================================================================== */
 :root {
     --lrh-primary: #0073aa;
-    --lrh-success: #059669;
-    --lrh-danger: #dc2626;
+    --lrh-success: #10b981;
+    --lrh-danger: #ef4444;
     --lrh-neutral: #6b7280;
     --lrh-border: #e5e7eb;
     --lrh-bg-light: #f9fafb;
@@ -131,7 +131,7 @@
 .lrh-interactive-chart {
     background: #fff;
     border-radius: 12px;
-    padding: 24px;
+    padding: 10px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
 }
 
@@ -384,7 +384,97 @@
 .lrh-comparison-item:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+/* ==========================================================================
+   Changes Timeline Table (SEO & AI Optimized)
+   ========================================================================== */
+.lrh-timeline-table {
+    width: 100%;
+    display: table; /* Ändrat från block */
+    overflow-x: visible; /* Ändrat från auto */
+}
 
+.lrh-timeline-table table {
+    width: 100%;
+    table-layout: fixed; /* Nytt: fixa kolumnbredder */
+}
+
+/* Sätt specifika bredder för kolumnerna */
+.lrh-timeline-table th:nth-child(1),
+.lrh-timeline-table td:nth-child(1) {
+    width: 15%; /* Datum */
+}
+
+.lrh-timeline-table th:nth-child(2),
+.lrh-timeline-table td:nth-child(2) {
+    width: 20%; /* Bank */
+}
+
+.lrh-timeline-table th:nth-child(3),
+.lrh-timeline-table td:nth-child(3) {
+    width: 65%; /* Ändring */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal; /* Tillåt radbrytning */
+}
+
+/* Färgkodning för ändringar */
+.lrh-timeline-table strong.lrh-decrease,
+.lrh-timeline-table .lrh-decrease {
+    color: var(--lrh-success);
+    font-weight: 600;
+}
+
+.lrh-timeline-table strong.lrh-increase,
+.lrh-timeline-table .lrh-increase {
+    color: var(--lrh-danger);
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .lrh-timeline-table thead {
+        display: none;
+    }
+    .lrh-timeline-table,
+    .lrh-timeline-table tbody,
+    .lrh-timeline-table tr {
+        display: block;
+        width: 100%;
+    }
+    .lrh-timeline-table tr {
+        margin-bottom: 7px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    .lrh-timeline-table td {
+        display: block;
+        width: 100%;
+        padding: 0;
+        border: none;
+        text-align: left;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    /* Datum och Bank på samma rad */
+    .lrh-timeline-table td:first-child {
+        display: inline-block;
+        width: auto;
+        margin-right: 0.5rem;
+        font-weight: 600;
+    }
+    .lrh-timeline-table td:nth-child(2) {
+        display: inline-block;
+        width: auto;
+    }
+    /* Ändring på egen rad */
+    .lrh-timeline-table td:last-child {
+        display: block;
+        margin-top: 0.2rem;
+        width: 100%;
+        white-space: normal;
+        text-align: left;
+    }
+}
 /* ==========================================================================
    Utilities
    ========================================================================== */
@@ -407,23 +497,22 @@
     .lrh-main-controls {
         grid-template-columns: 1fr;
     }
-    
+
     .lrh-period-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .lrh-chart-wrapper {
         height: 300px;
         padding: 10px;
     }
-    
+
     .lrh-legend-items {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;
     }
-    
-    
+
     .lrh-svg-tooltip {
         position: fixed;
         font-size: 0.9em;
